@@ -32,12 +32,13 @@ try:
         log_message(f"Initial IP resolved: {current_ip} at {now.strftime('%Y-%m-%d %H:%M:%S')}")
     elif resolved_ip != current_ip:
         # IP has changed
+        duration_since_last_change = "Unknown"
+        if os.path.exists(current_ip_file):
+            last_change_time = os.path.getmtime(current_ip_file)
+            duration_since_last_change = str(datetime.now() - datetime.fromtimestamp(last_change_time)).split('.')[0]
         with open(current_ip_file, "w") as f:
             f.write(resolved_ip)
-        log_message(
-            f"IP change detected: {current_ip} -> {resolved_ip} at {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            f"Duration since last change: {str(datetime.now() - now).split('.')[0]}"
-        )
+        log_message(f"IP change detected: {current_ip} -> {resolved_ip} at {now.strftime('%Y-%m-%d %H:%M:%S')}\nDuration since last change: {duration_since_last_change}")
 
 except Exception as e:
     log_message(f"Error resolving DNS: {str(e)} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
