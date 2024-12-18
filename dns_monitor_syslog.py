@@ -1,55 +1,40 @@
 import socket
-import time
 from datetime import datetime
-import logging
-import logging.handlers
+import os
 
 # Configuration
 dns_to_monitor = "anward8.ip.afrihost.co.za"  # DNS address to monitor
-check_interval = 5 * 60  # 5 minutes in seconds
+log_file = os.path.join(os.path.expanduser("~"), "Desktop", "dns_ip_changes.log")
+current_ip_file = os.path.join(os.path.expanduser("~"), "Desktop", "current_ip.txt")
 
-# Initialize variables
-current_ip = None
-last_change_time = None
-
-# Configure syslog handler
-syslog_handler = logging.handlers.SysLogHandler(address='/var/run/log')
-logger = logging.getLogger()
-logger.addHandler(syslog_handler)
-logger.setLevel(logging.INFO)
-
-# Helper function to log messages to syslog
+# Helper function to log messages to the file
 def log_message(message):
-    logger.info(f"DNS Monitor: {message}")
+    with open(log_file, "a") as log:
+        log.write(f"{message}\n")
 
-# Initial log
-log_message(f"Monitoring started for DNS: {dns_to_monitor} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+try:
+    # Resolve the DNS to an IP address
+    resolved_ip = socket.gethostbyname(dns_to_monitor)
+    now = datetime.now()
 
-while True:
-    try:
-        # Resolve the DNS to an IP address
-        resolved_ip = socket.gethostbyname(dns_to_monitor)
-        now = datetime.now()
+    # Load the current IP from the file (if it exists)
+    if os.path.exists(current_ip_file):
+        with open(current_ip_file, "r") as f:
+            current_ip = f.read().strip()
+    else:
+        current_ip = None
 
-        if current_ip is None:
-            # First-time resolution
-            current_ip = resolved_ip
-            last_change_time = now
-            log_message(f"Initial IP resolved: {current_ip} at {now.strftime('%Y-%m-%d %H:%M:%S')}")
-        elif resolved_ip != current_ip:
-            # IP has changed
-            duration = now - last_change_time
-            duration_str = str(duration).split('.')[0]  # Format the duration without microseconds
+    if current_ip is None:
+        # First-time resolution
+        current_ip = resolved_ip
+        with open(current_ip_file, "w") as f:
+            f.write(current_ip)
+        log_message(f"Initial IP resolved: {current_ip} at {now.strftime('%Y-%m-%d %H:%M:%S')}")
+    elif resolved_ip != current_ip:
+        # IP has changed
+        with open(current_ip_file, "w") as f:
+            f.write(resolved_ip)
+        log_message(f"IP change detected: {current_ip} -> {resolved_ip} at {now.strftime('%Y-%m-%d %H:%M:%S')}\nDuration since last change: {str(datetime.now() - now).split('.')[0]}")
 
-            log_message(f"IP change detected: {current_ip} -> {resolved_ip} at {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                        f"Duration with previous IP ({current_ip}): {duration_str}")
-
-            # Update current IP and last change time
-            current_ip = resolved_ip
-            last_change_time = now
-
-    except Exception as e:
-        log_message(f"Error resolving DNS: {str(e)} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
-    # Wait for the next check
-    time.sleep(check_interval)
+except Exception as e:
+    log_message(f"Error resolving DNS: {str(e)} at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
